@@ -1,8 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using Unity.VisualScripting;
-using UnityEditor;
 using UnityEngine;
 
 public class Font : MonoBehaviour
@@ -10,7 +5,7 @@ public class Font : MonoBehaviour
     [SerializeField] private Texture2D _fontTexture;
     [SerializeField] private Vector2Int _glyphSize;
 
-    [SerializeField] private Glyph[] _glyphs;
+    public Glyph[] _glyphs { get; private set; }
 
     public Glyph GetGlyph(float targetCoverage)
     {
@@ -50,6 +45,8 @@ public class Font : MonoBehaviour
         }
         _glyphs = SortGlyphs(_glyphs);
         //PrintDebugInfo();
+        ASCIIRenderer aSCIIRenderer = GetComponent<ASCIIRenderer>();
+        aSCIIRenderer.OnFontsGenerated();
     }
 
     private float CalculateCoverage(Color[] glyph)

@@ -1,0 +1,85 @@
+#pragma kernel CSMain
+
+Texture2D<float4> cameraTexture;
+RWTexture2D<float4> outputTexture;
+Texture2DArray glyphTextures;
+
+StructuredBuffer<float> glyphCoverages;
+
+int textureWidth;
+int textureHeight;
+int numGlyphs;
+
+float contrast;
+
+#define GLYPH_SIZE 16
+
+float CalculateGrayscale(float4 color)
+{
+    return dot(color.rgb, float3(0.299, 0.587, 0.114));
+}
+
+int FindClosestGlyph(float averageGrayscale)
+{
+    int res = 0;
+    float closestDifference = abs(averageGrayscale - glyphCoverages[0]);
+    for (int i = 1; i < numGlyphs; i++)
+    {
+        float diff = abs(averageGrayscale - glyphCoverages[i]);
+        if (diff < closestDifference)
+        {
+            closestDifference = diff;
+            res = i;
+        }
+
+    }
+    return res;
+}
+
+
+[numthreads(16,16,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    int blockX = (id.x / GLYPH_SIZE) * GLYPH_SIZE;
+    int blockY = (id.y / GLYPH_SIZE) * GLYPH_SIZE;
+    
+    float totalGrayscale = 0.0;
+    
+    for (int y = 0; y < GLYPH_SIZE; y++)
+    {
+        for (int x = 0; x < GLYPH_SIZE; x++)
+        {
+            int pixelX = blockX + x;
+            int pixelY = blockY + y;
+            
+            if (pixelX < textureWidth && pixelY < textureHeight)
+            {
+                float4 color = cameraTexture[int2(pixelX, pixelY)];
+                totalGrayscale += CalculateGrayscale(color);
+            }
+        }
+    }
+    float averageGrayscale = (totalGrayscale / (GLYPH_SIZE * GLYPH_SIZE)) * (1 - contrast);
+    
+    int selectedGlyphIndex = FindClosestGlyph(averageGrayscale);
+    
+    for (int y2 = 0; y2 < GLYPH_SIZE; y2++)
+    {
+        for (int x2 = 0; x2 < GLYPH_SIZE; x2++)
+        {
+            int pixelX = blockX + x2;
+            int pixelY = blockY + y2;
+            
+            if (pixelX < textureWidth && pixelY < textureHeight)
+            {
+                float4 glyphColor = glyphTextures.Load(int4(x2, y2, selectedGlyphIndex,0));
+                //float4 glyphColor = float4(1, 1, 1, 0);
+                //float4 glyphColor = float4(averageGrayscale, averageGrayscale, averageGrayscale, 0);
+                //float pixelGrayscale = CalculateGrayscale(cameraTexture[int2(pixelX, pixelY)]);
+                //float4 glyphColor = float4(pixelGrayscale, pixelGrayscale, pixelGrayscale, 0);
+                outputTexture[int2(pixelX, pixelY)] = glyphColor;
+            }
+        }
+    }
+   
+}

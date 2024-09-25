@@ -1,29 +1,50 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using Unity.VisualScripting;
 using UnityEngine;
 
 
 public class ASCIIRenderer : MonoBehaviour
 {
+    [SerializeField] private ComputeShader _ASCIIShader;
+
     [SerializeField] private Camera _camera;
     [SerializeField] private RenderTexture _renderTexture;
+    [SerializeField] private RenderTexture _outputTexture;
     [SerializeField] private Texture2D _cameraTexture;
 
-    [SerializeField] private Vector2Int _resolution;
-
     [SerializeField] private Font _font;
-    [SerializeField] private TextureBuilder _builder;
 
-    [SerializeField] private Material _debugMaterial;
+    [SerializeField] private Material _outputMaterial;
+
+    [SerializeField] private float _contrast;
+
+    private Vector2Int _resolution;
 
 
-    void Start()
+    private Texture2DArray _glyphTextureArray;
+    private ComputeBuffer _glyphCoveragesBuffer;
+
+    public void OnFontsGenerated()
     {
-        Debug.Log(Screen.width + " " + Screen.height);
-        _renderTexture = new RenderTexture(Screen.width, Screen.height, 24);
-        _camera.targetTexture = _renderTexture;
+        InitializeGlyphTextureArray();
+        _outputTexture = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
+        _outputTexture.enableRandomWrite = true;
+        _outputTexture.Create();
         _cameraTexture = new Texture2D(Screen.width, Screen.height, TextureFormat.RGB24, false);
+        _renderTexture = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
         _resolution = new Vector2Int(_renderTexture.width, _renderTexture.height);
+
+        _camera.targetTexture = _renderTexture;
+
+        InitializeGlyphCoveragesBuffer();
+        _ASCIIShader.SetTexture(0, "glyphTextures", _glyphTextureArray);
+        _ASCIIShader.SetInt("textureWidth", _resolution.x);
+        _ASCIIShader.SetInt("textureHeight", _resolution.y);
+        _ASCIIShader.SetInt("numGlyphs", _font._glyphs.Length);
+        _ASCIIShader.SetFloat("contrast", _contrast);
     }
 
     void Update()
@@ -32,83 +53,62 @@ public class ASCIIRenderer : MonoBehaviour
         _cameraTexture.ReadPixels(new Rect(0, 0, Screen.width, Screen.height), 0, 0);
         _cameraTexture.Apply();
         RenderTexture.active = null;
-        //Texture2D outputTexture = GenerateGrayscaleImage(_resolution, _cameraTexture);
-        //outputTexture.Apply();
-        Texture2D outputTexture = new Texture2D(_resolution.x, _resolution.y);
-        outputTexture = ConvertToASCII(_cameraTexture, new Vector2Int(16, 16));
-        outputTexture.Apply();
-        _debugMaterial.mainTexture = outputTexture;
+
+        _ASCIIShader.SetTexture(0, "cameraTexture", _cameraTexture);
+        _ASCIIShader.SetTexture(0, "outputTexture", _outputTexture);
+        _ASCIIShader.SetFloat("contrast", _contrast);
+
+        int threadGroupsX = Mathf.CeilToInt(_resolution.x / 16.0f);
+        int threadGroupsY = Mathf.CeilToInt(_resolution.y / 16.0f);
+        _ASCIIShader.Dispatch(0, threadGroupsX, threadGroupsY, 1);
+
+        ApplyOuputTexture();
     }
 
-    private Texture2D GenerateGrayscaleImage(Vector2Int size, Texture2D texture)
+    private void InitializeGlyphTextureArray()
     {
-        Texture2D grayscaleTexture = new Texture2D(size.x, size.y);
+        int glyphCount = _font._glyphs.Length;
+        int glyphSize = 16;
 
-        for (int x = 0; x < size.x; x++)
+        _glyphTextureArray = new Texture2DArray(glyphSize,glyphSize, glyphCount, TextureFormat.ARGB32, false);
+
+        for (int i = 0; i < glyphCount; i++)
         {
-            for (int y = 0; y < size.y; y++)
-            {
-                Color color = texture.GetPixel(x, y);
-                float grayscale = (color.r + color.g + color.b) / 3;
-                Color grayscaleColor = new Color(grayscale, grayscale, grayscale);
-                grayscaleTexture.SetPixel(x,y,grayscaleColor);
-            }
-        }
+            Texture2D glyphTexture = new Texture2D(glyphSize, glyphSize, TextureFormat.ARGB32, false);
+            glyphTexture.SetPixels(_font._glyphs[i].texture);
+            glyphTexture.Apply();
 
-        grayscaleTexture.Apply();
-        return grayscaleTexture;
+            Graphics.CopyTexture(glyphTexture, 0, 0, _glyphTextureArray, i, 0);
+        }
     }
 
-    private Texture2D GenerateRandomTexture(Vector2Int size)
+    private void InitializeGlyphCoveragesBuffer()
     {
-        Texture2D randomTexture = new Texture2D(size.x, size.y);
+        int glyphCount = _font._glyphs.Length;
+        float[] glyphCoverages = new float[glyphCount];
 
-        for (int x = 0; x < size.x; x++)
+        for (int i = 0; i < glyphCount; i++)
         {
-            for (int y = 0; y < size.y; y++)
-            {
-                float R = Random.Range(0f, 1f);
-                float G = Random.Range(0f, 1f);
-                float B = Random.Range(0f, 1f);
-
-                Color randomColor = new Color(R, G, B);
-                randomTexture.SetPixel(x, y, randomColor);
-            }
+            glyphCoverages[i] = _font._glyphs[i].coverage;
         }
-        randomTexture.Apply();
-        return randomTexture;
+
+        _glyphCoveragesBuffer = new ComputeBuffer(glyphCoverages.Length, sizeof(float));
+        _glyphCoveragesBuffer.SetData(glyphCoverages);
+
+        _ASCIIShader.SetBuffer(0, "glyphCoverages", _glyphCoveragesBuffer);
     }
 
-    private Texture2D ConvertToASCII(Texture2D texture, Vector2Int glyphSize)
+    private void ApplyOuputTexture()
     {
-        Texture2D output = new Texture2D(texture.width, texture.height);
-        _builder.CreateNewTexture(new Vector2Int(texture.width, texture.height));
-        for (int x = 0; x < _resolution.x; x += 16)
-        {
-            for (int y = 0; y < _resolution.y; y += 16)
-            {
-                float avgValue = SamplePixels(texture, new Vector2Int(x, y), glyphSize);
-                Glyph glyph = _font.GetGlyph(avgValue);
-                _builder.AddPixels(new Vector2Int(x, y), glyphSize, glyph.texture);
-            }
-        }
-        output = _builder.GetTexture();
-        return output;
+        if(_outputMaterial != null)
+            _outputMaterial.mainTexture = _outputTexture;
     }
 
-    private float SamplePixels(Texture2D texture, Vector2Int position, Vector2Int size)
+    private void OnDestroy()
     {
-        float avgColor = 0f;
-        for (int x = position.x; x < position.x + size.x; x++)
-        {
-            for (int y = position.y; y < position.y + size.y; y++)
-            {
-                Color color = texture.GetPixel(x, y);
-                avgColor += (color.r + color.g + color.b) / 3;
-            }
-        }
-
-        avgColor = avgColor / (size.x * size.y);
-        return avgColor;
+        if (_glyphTextureArray != null)
+            Destroy(_glyphTextureArray);
+        if (_glyphCoveragesBuffer != null)
+            _glyphCoveragesBuffer.Release();
     }
 }
