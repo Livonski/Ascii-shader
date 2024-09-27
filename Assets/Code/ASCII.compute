@@ -44,6 +44,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     int blockY = (id.y / GLYPH_SIZE) * GLYPH_SIZE;
     
     float totalGrayscale = 0.0;
+    float4 averageColor = 1.0;
     
     for (int y = 0; y < GLYPH_SIZE; y++)
     {
@@ -55,11 +56,14 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             if (pixelX < textureWidth && pixelY < textureHeight)
             {
                 float4 color = cameraTexture[int2(pixelX, pixelY)];
+                averageColor += color;
                 totalGrayscale += CalculateGrayscale(color);
             }
         }
     }
-    float averageGrayscale = (totalGrayscale / (GLYPH_SIZE * GLYPH_SIZE)) * (1 - contrast);
+    int numPixels = GLYPH_SIZE * GLYPH_SIZE;
+    float averageGrayscale = (totalGrayscale / (numPixels)) * (1 - contrast);
+    averageColor = float4(averageColor.x / numPixels, averageColor.y / numPixels, averageColor.z / numPixels, averageColor.w / numPixels);
     
     int selectedGlyphIndex = FindClosestGlyph(averageGrayscale);
     
@@ -72,11 +76,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
             
             if (pixelX < textureWidth && pixelY < textureHeight)
             {
-                float4 glyphColor = glyphTextures.Load(int4(x2, y2, selectedGlyphIndex,0));
-                //float4 glyphColor = float4(1, 1, 1, 0);
-                //float4 glyphColor = float4(averageGrayscale, averageGrayscale, averageGrayscale, 0);
-                //float pixelGrayscale = CalculateGrayscale(cameraTexture[int2(pixelX, pixelY)]);
-                //float4 glyphColor = float4(pixelGrayscale, pixelGrayscale, pixelGrayscale, 0);
+                float4 glyphColor = glyphTextures.Load(int4(x2, y2, selectedGlyphIndex,0)) * averageColor;
                 outputTexture[int2(pixelX, pixelY)] = glyphColor;
             }
         }

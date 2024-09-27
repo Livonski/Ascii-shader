@@ -277,10 +277,11 @@ MonoBehaviour:
   _ASCIIShader: {fileID: 7200000, guid: df0175f8882d7494c8749083beabe894, type: 3}
   _camera: {fileID: 330585545}
   _renderTexture: {fileID: 8400000, guid: 9e7f3923a8636a7418ebc37b73822bbf, type: 2}
-  _cameraTexture: {fileID: 2800000, guid: dffef66376be4fa480fb02b19edbe903, type: 3}
-  _resolution: {x: 0, y: 0}
+  _outputTexture: {fileID: 0}
+  _cameraTexture: {fileID: 2800000, guid: 2e6f2b5a11652ee42ab683adaedca4a3, type: 3}
   _font: {fileID: 330585549}
   _outputMaterial: {fileID: 2100000, guid: 12e584f1aacb55f438b8496b0da0e5e1, type: 2}
+  _contrast: 0.5
 --- !u!114 &330585549
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -602,7 +603,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 75eeeaf44ca7d88418165aa0dbbb8635, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -876,8 +877,8 @@ Transform:
   m_GameObject: {fileID: 1777888228}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.0011, y: -0.0018, z: 5}
-  m_LocalScale: {x: 6.6089787, y: 5.76596, z: 1}
+  m_LocalPosition: {x: -0.0187, y: 0.0072, z: 5}
+  m_LocalScale: {x: 10.315995, y: 5.802917, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1751238890}
@@ -943,7 +944,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 75eeeaf44ca7d88418165aa0dbbb8635, type: 2}
+  - {fileID: 2100000, guid: 4f5a946a6147b5e42ae047348ff106cb, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
